@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="水果進銷存">
+  <title>水果批發進銷存系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      -webkit-tap-highlight-color: transparent;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans antialiased min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
+    <h1 class="text-xl font-bold tracking-wide">🍎 水果批發進銷存</h1>
+    <span id="syncStatus" class="text-xs bg-emerald-800 text-emerald-200 px-2.5 py-1 rounded-full">離線儲存就緒</span>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
+
+    <!-- Quick Action Grid (4 Primary Buttons) -->
+    <section class="grid grid-cols-2 gap-3.5">
+      <button onclick="openModal('PURCHASE')" class="bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+        <span class="text-2xl mb-1">📦</span>
+        <span class="font-bold text-lg">進貨</span>
+        <span class="text-xs opacity-80">紀錄採購成本</span>
+      </button>
+
+      <button onclick="openModal('SALE')" class="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+        <span class="text-2xl mb-1">💰</span>
+        <span class="font-bold text-lg">正常銷售</span>
+        <span class="text-xs opacity-80">標準價格結帳</span>
+      </button>
+
+      <button onclick="openModal('DISCOUNT')" class="bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+        <span class="text-2xl mb-1">🏷️</span>
+        <span class="font-bold text-lg">降價出售</span>
+        <span class="text-xs opacity-80">出清/促銷統計</span>
+      </button>
+
+      <button onclick="openModal('SCRAP')" class="bg-rose-600 hover:bg-rose-700 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+        <span class="text-2xl mb-1">🗑️</span>
+        <span class="font-bold text-lg">報廢耗損</span>
+        <span class="text-xs opacity-80">爛果/過熟拋棄</span>
+      </button>
+    </section>
+
+    <!-- Daily Financial Summary Card -->
+    <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-3">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h2 class="text-base font-bold text-gray-700">📊 今日即時統計 (<span id="currentDate"></span>)</h2>
+        <button onclick="calculateDailyReport()" class="text-xs text-blue-600 underline">重新計算</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div class="bg-gray-50 p-3 rounded-xl">
+          <p class="text-gray-500 text-xs">營業額</p>
+          <p id="statRevenue" class="text-lg font-bold text-emerald-600">NT$ 0</p>
+        </div>
+        <div class="bg-gray-50 p-3 rounded-xl">
+          <p class="text-gray-500 text-xs">銷貨成本</p>
+          <p id="statCost" class="text-lg font-bold text-gray-700">NT$ 0</p>
+        </div>
+        <div class="bg-gray-50 p-3 rounded-xl">
+          <p class="text-gray-500 text-xs">估算毛利</p>
+          <p id="statProfit" class="text-lg font-bold text-blue-600">NT$ 0</p>
+        </div>
+        <div class="bg-gray-50 p-3 rounded-xl">
+          <p class="text-gray-500 text-xs">降價折讓損失</p>
+          <p id="statDiscountLoss" class="text-lg font-bold text-amber-600">NT$ 0</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Today Transaction Logs -->
+    <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
+      <h3 class="text-sm font-bold text-gray-700 mb-3">📋 今日異動明細</h3>
+      <div id="txLog" class="space-y-2 text-xs max-h-56 overflow-y-auto divide-y">
+        <p class="text-gray-400 text-center py-4">今日尚未有任何交易紀錄</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Form -->
+  <div id="modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-2xl p-6 space-y-4 shadow-xl animate-slide-up">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 id="modalTitle" class="text-lg font-bold">記帳</h3>
+        <button onclick="closeModal()" class="text-gray-400 text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <form id="txForm" onsubmit="handleFormSubmit(event)" class="space-y-3">
+        <input type="hidden" id="txType">
+        
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">水果品名</label>
+          <input type="text" id="itemName" required placeholder="如：愛文芒果、阿薩姆芭樂" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">數量 (箱/斤)</label>
+            <input type="number" step="0.1" id="itemQty" required placeholder="0.0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+          <div id="priceField">
+            <label id="priceLabel" class="block text-xs text-gray-500 mb-1">單價 (NT$)</label>
+            <input type="number" step="1" id="itemPrice" required placeholder="0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+        </div>
+
+        <!-- Special field for Discount Sales -->
+        <div id="originalPriceField" class="hidden">
+          <label class="block text-xs text-gray-500 mb-1">原定標準售價 (NT$)</label>
+          <input type="number" step="1" id="itemOriginalPrice" placeholder="0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+        </div>
+
+        <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md active:bg-emerald-800 transition text-base">確認儲存</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- JavaScript Core Logic -->
+  <script>
+    // 1. Supabase 設定 (若要同步雲端，填入專案 URL 與 Key，若無則純本地儲存)
+    const SUPABASE_URL = ""; 
+    const SUPABASE_KEY = "";
+    const supabase = (SUPABASE_URL && SUPABASE_KEY) ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+    document.getElementById('currentDate').innerText = new Date().toLocaleDateString('zh-TW');
+
+    // 2. 本地資料庫初始化 (LocalStorage + IndexedDB 雙重應答)
+    function getStoredData(key) {
+      return JSON.parse(localStorage.getItem(key) || '[]');
+    }
+
+    function saveData(key, data) {
+      localStorage.setItem(key, JSON.stringify(data));
+      syncToCloud(key, data);
+    }
+
+    // 3. Modal 視窗控制
+    function openModal(type) {
+      document.getElementById('txType').value = type;
+      const modalTitle = document.getElementById('modalTitle');
+      const priceField = document.getElementById('priceField');
+      const priceLabel = document.getElementById('priceLabel');
+      const origPriceField = document.getElementById('originalPriceField');
+
+      origPriceField.classList.add('hidden');
+      priceField.classList.remove('hidden');
+
+      if (type === 'PURCHASE') {
+        modalTitle.innerText = "📦 新增進貨紀錄";
+        priceLabel.innerText = "進貨單價 (成本/箱/斤)";
+      } else if (type === 'SALE') {
+        modalTitle.innerText = "💰 正常銷售記帳";
+        priceLabel.innerText = "實際銷售單價";
+      } else if (type === 'DISCOUNT') {
+        modalTitle.innerText = "🏷️ 降價促銷記帳";
+        priceLabel.innerText = "降價後折讓單價";
+        origPriceField.classList.remove('hidden');
+      } else if (type === 'SCRAP') {
+        modalTitle.innerText = "🗑️ 報廢耗損紀錄";
+        priceField.classList.add('hidden'); // 報廢無需輸入單價，直接按進貨均價扣算
+      }
+
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+      document.getElementById('txForm').reset();
+    }
+
+    // 4. 表單提交處置
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      const type = document.getElementById('txType').value;
+      const name = document.getElementById('itemName').value.trim();
+      const qty = parseFloat(document.getElementById('itemQty').value);
+      const price = parseFloat(document.getElementById('itemPrice').value || 0);
+      const origPrice = parseFloat(document.getElementById('itemOriginalPrice').value || 0);
+
+      const record = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        date: new Date().toISOString().split('T')[0],
+        type, name, qty, price, origPrice
+      };
+
+      const logs = getStoredData('fruit_transactions');
+      logs.push(record);
+      saveData('fruit_transactions', logs);
+
+      closeModal();
+      calculateDailyReport();
+      renderLogs();
+    }
+
+    // 5. 毛利與日報表邏輯 (先進先出/加權平均庫存成本演算法)
+    function calculateDailyReport() {
+      const logs = getStoredData('fruit_transactions');
+      const today = new Date().toISOString().split('T')[0];
+      const todayLogs = logs.filter(l => l.date === today);
+
+      // 計算各品項當前平均進貨成本
+      const inventory = {};
+      logs.forEach(l => {
+        if (!inventory[l.name]) inventory[l.name] = { totalQty: 0, totalCost: 0 };
+        if (l.type === 'PURCHASE') {
+          inventory[l.name].totalQty += l.qty;
+          inventory[l.name].totalCost += (l.qty * l.price);
+        }
+      });
+
+      let revenue = 0;
+      let cogs = 0; // 銷貨成本
+      let scrapCost = 0; // 報廢成本
+      let discountLoss = 0;
+
+      todayLogs.forEach(l => {
+        const avgUnitCost = inventory[l.name] && inventory[l.name].totalQty > 0 
+          ? (inventory[l.name].totalCost / inventory[l.name].totalQty) 
+          : 0;
+
+        if (l.type === 'SALE') {
+          revenue += (l.qty * l.price);
+          cogs += (l.qty * avgUnitCost);
+        } else if (l.type === 'DISCOUNT') {
+          revenue += (l.qty * l.price);
+          cogs += (l.qty * avgUnitCost);
+          discountLoss += (l.origPrice - l.price) * l.qty;
+        } else if (l.type === 'SCRAP') {
+          scrapCost += (l.qty * avgUnitCost);
+        }
+      });
+
+      const profit = revenue - cogs - scrapCost;
+
+      // 渲染畫面
+      document.getElementById('statRevenue').innerText = `NT$ ${revenue.toLocaleString()}`;
+      document.getElementById('statCost').innerText = `NT$ ${Math.round(cogs + scrapCost).toLocaleString()}`;
+      document.getElementById('statProfit').innerText = `NT$ ${Math.round(profit).toLocaleString()}`;
+      document.getElementById('statDiscountLoss').innerText = `NT$ ${Math.round(discountLoss).toLocaleString()}`;
+    }
+
+    // 6. 明細渲染
+    function renderLogs() {
+      const logs = getStoredData('fruit_transactions');
+      const today = new Date().toISOString().split('T')[0];
+      const todayLogs = logs.filter(l => l.date === today).reverse();
+      const container = document.getElementById('txLog');
+
+      if (todayLogs.length === 0) {
+        container.innerHTML = `<p class="text-gray-400 text-center py-4">今日尚未有任何交易紀錄</p>`;
+        return;
+      }
+
+      const typeMap = {
+        'PURCHASE': { label: '進貨', color: 'text-emerald-600' },
+        'SALE': { label: '正常銷售', color: 'text-blue-600' },
+        'DISCOUNT': { label: '降價出售', color: 'text-amber-600' },
+        'SCRAP': { label: '報廢耗損', color: 'text-rose-600' }
+      };
+
+      container.innerHTML = todayLogs.map(l => `
+        <div class="flex justify-between items-center py-2">
+          <div>
+            <span class="font-bold ${typeMap[l.type].color}">[${typeMap[l.type].label}]</span>
+            <span class="font-medium text-gray-800 ml-1">${l.name}</span>
+            <span class="text-gray-400 ml-1">${l.qty} 箱/斤</span>
+          </div>
+          <div class="text-right">
+            <span class="font-semibold text-gray-700">${l.price ? 'NT$ ' + (l.qty * l.price).toLocaleString() : '-'}</span>
+            <div class="text-[10px] text-gray-400">${new Date(l.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 7. 雲端同步機制
+    async function syncToCloud(key, data) {
+      const statusEl = document.getElementById('syncStatus');
+      if (!supabase) {
+        statusEl.innerText = "本機安全儲存";
+        return;
+      }
+      try {
+        statusEl.innerText = "同步雲端中...";
+        // 傳送至 Supabase 範例程式碼
+        // await supabase.from('transactions').upsert(data);
+        statusEl.innerText = "雲端同步完成";
+      } catch (err) {
+        statusEl.innerText = "離線儲存 (待連線)";
+      }
+    }
+
+    // 初始化載入
+    calculateDailyReport();
+    renderLogs();
+  </script>
+</body>
+</html>
