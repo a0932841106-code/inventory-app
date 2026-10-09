@@ -7,10 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="水果進銷存">
   <title>水果批發進銷存系統</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Supabase JS Client -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body {
       -webkit-tap-highlight-color: transparent;
@@ -18,12 +15,25 @@
       padding-bottom: env(safe-area-inset-bottom);
       user-select: none;
     }
+    /* 確保 Modal 視窗滑出與顯現 */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-backdrop.active {
+      display: flex !important;
+    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans antialiased min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
+  <header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-40">
     <h1 class="text-xl font-bold tracking-wide">🍎 水果批發進銷存</h1>
     <span id="syncStatus" class="text-xs bg-emerald-800 text-emerald-200 px-2.5 py-1 rounded-full">離線儲存就緒</span>
   </header>
@@ -31,38 +41,38 @@
   <!-- Main Content Area -->
   <main class="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
 
-    <!-- Quick Action Grid (4 Primary Buttons) -->
+    <!-- 4 Primary Buttons -->
     <section class="grid grid-cols-2 gap-3.5">
-      <button onclick="openModal('PURCHASE')" class="bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+      <button type="button" onclick="openModal('PURCHASE')" class="bg-emerald-600 active:bg-emerald-800 text-white p-4 rounded-2xl shadow-sm transition flex flex-col items-center justify-center cursor-pointer">
         <span class="text-2xl mb-1">📦</span>
         <span class="font-bold text-lg">進貨</span>
         <span class="text-xs opacity-80">紀錄採購成本</span>
       </button>
 
-      <button onclick="openModal('SALE')" class="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+      <button type="button" onclick="openModal('SALE')" class="bg-blue-600 active:bg-blue-800 text-white p-4 rounded-2xl shadow-sm transition flex flex-col items-center justify-center cursor-pointer">
         <span class="text-2xl mb-1">💰</span>
         <span class="font-bold text-lg">正常銷售</span>
         <span class="text-xs opacity-80">標準價格結帳</span>
       </button>
 
-      <button onclick="openModal('DISCOUNT')" class="bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+      <button type="button" onclick="openModal('DISCOUNT')" class="bg-amber-500 active:bg-amber-700 text-white p-4 rounded-2xl shadow-sm transition flex flex-col items-center justify-center cursor-pointer">
         <span class="text-2xl mb-1">🏷️</span>
         <span class="font-bold text-lg">降價出售</span>
         <span class="text-xs opacity-80">出清/促銷統計</span>
       </button>
 
-      <button onclick="openModal('SCRAP')" class="bg-rose-600 hover:bg-rose-700 text-white p-4 rounded-2xl shadow-sm active:scale-95 transition flex flex-col items-center justify-center">
+      <button type="button" onclick="openModal('SCRAP')" class="bg-rose-600 active:bg-rose-800 text-white p-4 rounded-2xl shadow-sm transition flex flex-col items-center justify-center cursor-pointer">
         <span class="text-2xl mb-1">🗑️</span>
         <span class="font-bold text-lg">報廢耗損</span>
         <span class="text-xs opacity-80">爛果/過熟拋棄</span>
       </button>
     </section>
 
-    <!-- Daily Financial Summary Card -->
+    <!-- Daily Report Card -->
     <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-3">
       <div class="flex justify-between items-center border-b pb-2">
         <h2 class="text-base font-bold text-gray-700">📊 今日即時統計 (<span id="currentDate"></span>)</h2>
-        <button onclick="calculateDailyReport()" class="text-xs text-blue-600 underline">重新計算</button>
+        <button type="button" onclick="calculateDailyReport()" class="text-xs text-blue-600 underline">重新計算</button>
       </div>
 
       <div class="grid grid-cols-2 gap-3 text-sm">
@@ -85,7 +95,7 @@
       </div>
     </section>
 
-    <!-- Today Transaction Logs -->
+    <!-- Transaction Logs -->
     <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
       <h3 class="text-sm font-bold text-gray-700 mb-3">📋 今日異動明細</h3>
       <div id="txLog" class="space-y-2 text-xs max-h-56 overflow-y-auto divide-y">
@@ -94,12 +104,12 @@
     </section>
   </main>
 
-  <!-- Modal Form -->
-  <div id="modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-2xl p-6 space-y-4 shadow-xl animate-slide-up">
+  <!-- Modal Form Backdrop -->
+  <div id="modal" class="modal-backdrop sm:items-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-2xl p-6 space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b pb-3">
-        <h3 id="modalTitle" class="text-lg font-bold">記帳</h3>
-        <button onclick="closeModal()" class="text-gray-400 text-xl font-bold px-2">&times;</button>
+        <h3 id="modalTitle" class="text-lg font-bold text-gray-800">記帳</h3>
+        <button type="button" onclick="closeModal()" class="text-gray-400 text-2xl font-bold px-3 py-1">&times;</button>
       </div>
 
       <form id="txForm" onsubmit="handleFormSubmit(event)" class="space-y-3">
@@ -107,60 +117,55 @@
         
         <div>
           <label class="block text-xs text-gray-500 mb-1">水果品名</label>
-          <input type="text" id="itemName" required placeholder="如：愛文芒果、阿薩姆芭樂" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+          <input type="text" id="itemName" required placeholder="如：愛文芒果、芭樂" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-gray-500 mb-1">數量 (箱/斤)</label>
-            <input type="number" step="0.1" id="itemQty" required placeholder="0.0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+            <input type="number" step="any" id="itemQty" required placeholder="0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
           </div>
           <div id="priceField">
             <label id="priceLabel" class="block text-xs text-gray-500 mb-1">單價 (NT$)</label>
-            <input type="number" step="1" id="itemPrice" required placeholder="0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+            <input type="number" step="any" id="itemPrice" placeholder="0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
           </div>
         </div>
 
-        <!-- Special field for Discount Sales -->
         <div id="originalPriceField" class="hidden">
           <label class="block text-xs text-gray-500 mb-1">原定標準售價 (NT$)</label>
-          <input type="number" step="1" id="itemOriginalPrice" placeholder="0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
+          <input type="number" step="any" id="itemOriginalPrice" placeholder="0" class="w-full border border-gray-300 rounded-xl p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none">
         </div>
 
-        <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md active:bg-emerald-800 transition text-base">確認儲存</button>
+        <div class="pt-2">
+          <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md active:bg-emerald-800 transition text-base">確認儲存</button>
+        </div>
       </form>
     </div>
   </div>
 
-  <!-- JavaScript Core Logic -->
   <script>
-    // 1. Supabase 設定 (若要同步雲端，填入專案 URL 與 Key，若無則純本地儲存)
-    const SUPABASE_URL = ""; 
-    const SUPABASE_KEY = "";
-    const supabase = (SUPABASE_URL && SUPABASE_KEY) ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-
     document.getElementById('currentDate').innerText = new Date().toLocaleDateString('zh-TW');
 
-    // 2. 本地資料庫初始化 (LocalStorage + IndexedDB 雙重應答)
     function getStoredData(key) {
       return JSON.parse(localStorage.getItem(key) || '[]');
     }
 
     function saveData(key, data) {
       localStorage.setItem(key, JSON.stringify(data));
-      syncToCloud(key, data);
     }
 
-    // 3. Modal 視窗控制
+    // 修復點擊視窗邏輯
     function openModal(type) {
       document.getElementById('txType').value = type;
       const modalTitle = document.getElementById('modalTitle');
       const priceField = document.getElementById('priceField');
       const priceLabel = document.getElementById('priceLabel');
       const origPriceField = document.getElementById('originalPriceField');
+      const itemPriceInput = document.getElementById('itemPrice');
 
       origPriceField.classList.add('hidden');
       priceField.classList.remove('hidden');
+      itemPriceInput.required = true;
 
       if (type === 'PURCHASE') {
         modalTitle.innerText = "📦 新增進貨紀錄";
@@ -174,23 +179,30 @@
         origPriceField.classList.remove('hidden');
       } else if (type === 'SCRAP') {
         modalTitle.innerText = "🗑️ 報廢耗損紀錄";
-        priceField.classList.add('hidden'); // 報廢無需輸入單價，直接按進貨均價扣算
+        priceField.classList.add('hidden');
+        itemPriceInput.required = false;
       }
 
-      document.getElementById('modal').classList.remove('hidden');
+      const modal = document.getElementById('modal');
+      modal.classList.add('active');
+      
+      // 自動聚焦品名輸入框，便於 iPhone 鍵盤直接彈出
+      setTimeout(() => {
+        document.getElementById('itemName').focus();
+      }, 100);
     }
 
     function closeModal() {
-      document.getElementById('modal').classList.add('hidden');
+      const modal = document.getElementById('modal');
+      modal.classList.remove('active');
       document.getElementById('txForm').reset();
     }
 
-    // 4. 表單提交處置
     function handleFormSubmit(e) {
       e.preventDefault();
       const type = document.getElementById('txType').value;
       const name = document.getElementById('itemName').value.trim();
-      const qty = parseFloat(document.getElementById('itemQty').value);
+      const qty = parseFloat(document.getElementById('itemQty').value || 0);
       const price = parseFloat(document.getElementById('itemPrice').value || 0);
       const origPrice = parseFloat(document.getElementById('itemOriginalPrice').value || 0);
 
@@ -210,13 +222,11 @@
       renderLogs();
     }
 
-    // 5. 毛利與日報表邏輯 (先進先出/加權平均庫存成本演算法)
     function calculateDailyReport() {
       const logs = getStoredData('fruit_transactions');
       const today = new Date().toISOString().split('T')[0];
       const todayLogs = logs.filter(l => l.date === today);
 
-      // 計算各品項當前平均進貨成本
       const inventory = {};
       logs.forEach(l => {
         if (!inventory[l.name]) inventory[l.name] = { totalQty: 0, totalCost: 0 };
@@ -227,8 +237,8 @@
       });
 
       let revenue = 0;
-      let cogs = 0; // 銷貨成本
-      let scrapCost = 0; // 報廢成本
+      let cogs = 0;
+      let scrapCost = 0;
       let discountLoss = 0;
 
       todayLogs.forEach(l => {
@@ -250,14 +260,12 @@
 
       const profit = revenue - cogs - scrapCost;
 
-      // 渲染畫面
-      document.getElementById('statRevenue').innerText = `NT$ ${revenue.toLocaleString()}`;
+      document.getElementById('statRevenue').innerText = `NT$ ${Math.round(revenue).toLocaleString()}`;
       document.getElementById('statCost').innerText = `NT$ ${Math.round(cogs + scrapCost).toLocaleString()}`;
       document.getElementById('statProfit').innerText = `NT$ ${Math.round(profit).toLocaleString()}`;
       document.getElementById('statDiscountLoss').innerText = `NT$ ${Math.round(discountLoss).toLocaleString()}`;
     }
 
-    // 6. 明細渲染
     function renderLogs() {
       const logs = getStoredData('fruit_transactions');
       const today = new Date().toISOString().split('T')[0];
@@ -291,24 +299,6 @@
       `).join('');
     }
 
-    // 7. 雲端同步機制
-    async function syncToCloud(key, data) {
-      const statusEl = document.getElementById('syncStatus');
-      if (!supabase) {
-        statusEl.innerText = "本機安全儲存";
-        return;
-      }
-      try {
-        statusEl.innerText = "同步雲端中...";
-        // 傳送至 Supabase 範例程式碼
-        // await supabase.from('transactions').upsert(data);
-        statusEl.innerText = "雲端同步完成";
-      } catch (err) {
-        statusEl.innerText = "離線儲存 (待連線)";
-      }
-    }
-
-    // 初始化載入
     calculateDailyReport();
     renderLogs();
   </script>
